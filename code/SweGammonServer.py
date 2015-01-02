@@ -4,6 +4,7 @@ import socket
 import json
 import re
 import Queue
+from random import randint
 
 threadLock = threading.Lock()
 
@@ -58,6 +59,13 @@ class GameState(object):
         self.gatheringZone = [0,0]
         self.brokenZone = [0,0]
 
+class Games(object):
+    def __init__(self):
+        self.games = []
+
+    def addGame(self, game):
+        self.games.append(game)
+
 class Game(object):
     def __init__(self):
         self.gameState = GameState()
@@ -72,8 +80,6 @@ class Game(object):
 
     def addWatcher(self, user):
         self.watchers.append(user)
-
-
 
 class WaitingRoom(threading.Thread):
     def __init__(self):
@@ -96,7 +102,14 @@ class WaitingRoom(threading.Thread):
                 blackPlayer = self.players.get()
                 blackPlayer.color = 'B'
                 game.setPlayers(whitePlayer, blackPlayer)
+                games.addGame(game)
                 ServerCommandHandler.sendChoosePlayResponse(game, whitePlayer, blackPlayer)
+
+            if self.watchers.qsize() > 0 and len(games.games) > 0:
+                randGameNumber = randint(0,len(games.games) - 1)
+                watcher = self.watchers.get()
+                games.games[randGameNumber].addWatcher(watcher)
+                ServerCommandHandler.sendChooseWatchResponse(game, watcher)
 
 
 class JsonDict(dict):
@@ -123,6 +136,8 @@ class ServerCommandHandler(object):
                 self.receiveLoginCommand(decoded, con, address)
             elif command == 'SPLAY':
                 self.receiveChoosePlayCommand(decoded, con, address)
+            elif command == 'SWATC':
+                self.receiveChooseWatchCommand(decoded, con, address)
         except ValueError, e:
             print 'valueerror:' +  e.message
         except KeyError, e:
@@ -183,6 +198,28 @@ class ServerCommandHandler(object):
         threads.append(sendManager2)
         sendManager2.start()
 
+    def receiveChooseWatchCommand(self, decoded, con, address):
+        seqid = decoded['seqid']
+        user = users.findUserFromConnection(con)
+        if user == None:
+            self.sendErrorResponse(seqid, 'Technical error. User not logged in', con)
+        else:
+            user.userType = 'W'
+            user.seqid = seqid
+            waitingRoom.addToQueue(user)
+
+    @staticmethod
+    def sendChooseWatchResponse(game, user):
+        dict1 = JsonDict(user.seqid)
+        dict1["player1"] = game.whitePlayer.userName
+        dict1["player2"] = game.blackPlayer.userName
+        dict1["gamestate"] = game.gameState.__dict__
+        jsonPart = json.dumps(dict1)
+        message = 'SWASC  ' + jsonPart
+        sendManager1 = ServerSendManager(user.con, message)
+        threads.append(sendManager1)
+        sendManager1.start()
+
     def sendErrorResponse(self, seqid, errorMessage, con):
         self.dict = JsonDict(seqid)
         self.dict["message"] = errorMessage
@@ -226,6 +263,7 @@ class ServerSendManager(threading.Thread):
 threads = []
 running = True
 users = Users()
+games = Games()
 
 waitingRoom = WaitingRoom()
 threads.append(waitingRoom)
