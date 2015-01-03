@@ -5,6 +5,7 @@ import json
 import re
 import Queue
 from random import randint
+import copy
 
 threadLock = threading.Lock()
 
@@ -82,6 +83,34 @@ class GameState(object):
         print returnList
         return returnList
 
+    def checkWinning(self):
+        if self.gatheringZone[0] >= 15:
+            self.buttons[0][0] = 0
+            self.buttons[1][0] = 0
+            return [True, False]
+        elif self.gatheringZone[1] >= 15:
+            self.buttons[0][0] = 0
+            self.buttons[1][0] = 0
+            return [False, True]
+        return [False, False]
+
+    def checkAfterMove(self):
+        totalPieces = 0
+        for position in self.positions:
+            if position[0] < 0 or position[1] < 0:
+                return True
+            totalPieces += position[0] + position[1]
+        if self.gatheringZone[0] < 0 or self.brokenZone[0] < 0:
+            return True
+        if self.gatheringZone[1] < 0 or self.brokenZone[1] < 0:
+            return True
+        totalPieces += self.gatheringZone[0] + self.brokenZone[0]
+        totalPieces += self.gatheringZone[1] + self.brokenZone[1]
+        if totalPieces != 30:
+            return True
+        return False
+
+
     def movePieces(self, color, bgNotationString):
         #sample move = ['4', '2', '22', '18', '6', '2']
         move = self.parse(bgNotationString)
@@ -130,19 +159,7 @@ class GameState(object):
                 if position[1] > 0 and position[0] == 1:
                     position[0] = 0
                     self.brokenZone[0] += 1
-
-        #winning decision
-        if self.gatheringZone[0] >= 15:
-            self.buttons[0][0] = 0
-            self.buttons[1][0] = 0
-            return [True,False]
-        elif self.gatheringZone[1] >= 15:
-            self.buttons[0][0] = 0
-            self.buttons[1][0] = 0
-            return [False, True]
-        else:
-            return [False, False]
-
+        return self.checkAfterMove()
 
 class Games(object):
     def __init__(self):
@@ -185,7 +202,7 @@ class WaitingRoom(threading.Thread):
             self.watchers.put(user)
     def run(self):
         while running:
-            time.sleep(3)
+            time.sleep(1)
             if self.players.qsize() > 1:
                 game = Game()
                 whitePlayer = self.players.get()
@@ -382,14 +399,29 @@ class ServerCommandHandler(object):
             self.sendErrorResponse(seqid, 'Technical error. send move button does not match2', con)
             return
         elif not moveString:
-            self.sendErrorResponse(seqid, 'Technical error. move is invalid', con)
+            self.sendErrorResponse(seqid, 'Technical error. move is invalid1', con)
             return
 
-        game.previousGameState = game.gameState
+        tempGameState = copy.deepcopy(game.gameState)
         game.gameState.buttonsAfterSendMove(user.color)
-        wingame = game.gameState.movePieces(user.color, moveString)
-
-        self.sendSendMoveResponse(user, game, wingame)
+        error = game.gameState.movePieces(user.color, moveString)
+        if error:
+            self.sendErrorResponse(seqid, 'Technical error. move is invalid2', con)
+            game.gameState = copy.deepcopy(tempGameState)
+            threadLock.acquire
+            print game.gameState
+            threadLock.release
+            return
+        wingame = game.gameState.checkWinning()
+        if wingame == None:
+            self.sendErrorResponse(seqid, 'Technical error. move is invalid3', con)
+            game.gameState = copy.deepcopy(tempGameState)
+            threadLock.acquire
+            print game.gameState
+            threadLock.release
+        else:
+            self.sendSendMoveResponse(user, game, wingame)
+            game.previousGameState = copy.deepcopy(tempGameState)
 
     def sendSendMoveResponse(self, user, game, wingame):
         dict = JsonDict(user.seqid)
