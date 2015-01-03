@@ -66,6 +66,12 @@ class Games(object):
     def addGame(self, game):
         self.games.append(game)
 
+    def findGameFromUser(self, user):
+        for game in self.games:
+            if game.whitePlayer == user or game.blackPlayer == user:
+                return game
+        return None
+
 class Game(object):
     def __init__(self):
         self.gameState = GameState()
@@ -111,7 +117,6 @@ class WaitingRoom(threading.Thread):
                 games.games[randGameNumber].addWatcher(watcher)
                 ServerCommandHandler.sendChooseWatchResponse(game, watcher)
 
-
 class JsonDict(dict):
     def __init__(self, seqid):
         dict.__init__(self)
@@ -124,6 +129,15 @@ class ServerCommandHandler(object):
         print reqList
         threadLock.release
         return reqList[0], reqList[1]
+
+    def checkInput(self, con, decoded):
+        seqid = decoded['seqid']
+        user = users.findUserFromConnection(con)
+        if user == None:
+            self.sendErrorResponse(seqid, 'Technical error. User not connected', con)
+        else:
+            user.seqid = seqid
+        return seqid, user
 
     def handleCommand(self, req, con, address):
         try:
@@ -138,6 +152,8 @@ class ServerCommandHandler(object):
                 self.receiveChoosePlayCommand(decoded, con, address)
             elif command == 'SWATC':
                 self.receiveChooseWatchCommand(decoded, con, address)
+            elif command == 'DROLL':
+                self.receiveRollDiceCommand(decoded, con, address)
         except ValueError, e:
             print 'valueerror:' +  e.message
         except KeyError, e:
@@ -167,13 +183,9 @@ class ServerCommandHandler(object):
         sendManager.start()
 
     def receiveChoosePlayCommand(self, decoded, con, address):
-        seqid = decoded['seqid']
-        user = users.findUserFromConnection(con)
-        if user == None:
-            self.sendErrorResponse(seqid, 'Technical error. User not connected', con)
-        else:
+        seqid, user = self.checkInput(con, decoded)
+        if user != None:
             user.userType = 'P'
-            user.seqid = seqid
             waitingRoom.addToQueue(user)
 
     @staticmethod
@@ -199,13 +211,9 @@ class ServerCommandHandler(object):
         sendManager2.start()
 
     def receiveChooseWatchCommand(self, decoded, con, address):
-        seqid = decoded['seqid']
-        user = users.findUserFromConnection(con)
-        if user == None:
-            self.sendErrorResponse(seqid, 'Technical error. User not logged in', con)
-        else:
+        seqid, user = self.checkInput(con, decoded)
+        if user != None:
             user.userType = 'W'
-            user.seqid = seqid
             waitingRoom.addToQueue(user)
 
     @staticmethod
@@ -219,6 +227,53 @@ class ServerCommandHandler(object):
         sendManager1 = ServerSendManager(user.con, message)
         threads.append(sendManager1)
         sendManager1.start()
+
+    def receiveRollDiceCommand(self, decoded, con, address):
+        seqid, user = self.checkInput(con, decoded)
+        if user != None:
+            game = games.findGameFromUser(user)
+            if game == None:
+                self.sendErrorResponse(seqid, 'Technical error. Game not found', con)
+            elif game.gameState.buttons[0][0] != 1 and user.color == 'W':
+                self.sendErrorResponse(seqid, 'Technical error. dice button does not match1', con)
+            elif game.gameState.buttons[1][0] != 1 and user.color == 'B':
+                self.sendErrorResponse(seqid, 'Technical error. dice button does not match2', con)
+            else:
+                randDice1 = randint(1,6)
+                randDice2 = randint(1,6)
+                game.gameState.dice = [randDice1, randDice2]
+                if user.color == 'W':
+                    game.gameState.buttons[0][0] = 0
+                    game.gameState.buttons[0][1] = 1
+                    game.gameState.buttons[0][2] = 0
+                    game.gameState.buttons[1][0] = 0
+                    game.gameState.buttons[1][1] = 0
+                    game.gameState.buttons[1][2] = 0
+                else:
+                    game.gameState.buttons[0][0] = 0
+                    game.gameState.buttons[0][1] = 0
+                    game.gameState.buttons[0][2] = 0
+                    game.gameState.buttons[1][0] = 0
+                    game.gameState.buttons[1][1] = 1
+                    game.gameState.buttons[1][2] = 0
+
+                self.sendRollDiceResponse(user, game)
+
+    def sendRollDiceResponse(self, user, game):
+        dict = JsonDict(user.seqid)
+        dict["gamestate"] = game.gameState.__dict__
+        jsonPart = json.dumps(dict)
+        message = 'RDISC  ' + jsonPart
+        sendManager1 = ServerSendManager(game.whitePlayer.con, message)
+        threads.append(sendManager1)
+        sendManager1.start()
+        sendManager2 = ServerSendManager(game.blackPlayer.con, message)
+        threads.append(sendManager2)
+        sendManager2.start()
+        for watcher in game.watchers:
+            sendManager = ServerSendManager(watcher.con, message)
+            threads.append(sendManager)
+            sendManager.start()
 
     def sendErrorResponse(self, seqid, errorMessage, con):
         self.dict = JsonDict(seqid)
