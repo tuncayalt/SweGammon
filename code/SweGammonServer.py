@@ -59,6 +59,91 @@ class GameState(object):
         self.gatheringZone = [0,0]
         self.brokenZone = [0,0]
 
+    def buttonsAfterSendMove(self, color):
+        if color == 'W':
+            self.buttons[0][0] = 0
+            self.buttons[0][1] = 0
+            self.buttons[0][2] = 0
+            self.buttons[1][0] = 1
+            self.buttons[1][1] = 0
+            self.buttons[1][2] = 1
+        else:
+            self.buttons[0][0] = 1
+            self.buttons[0][1] = 0
+            self.buttons[0][2] = 1
+            self.buttons[1][0] = 0
+            self.buttons[1][1] = 0
+            self.buttons[1][2] = 0
+
+    def parse(self, bgNotationString):
+        #sample backgammon notation: 2-2: 22/20* bar/22 1/off 2/off
+        bgNotationString = bgNotationString.strip()
+        returnList = re.split('\* |-|: | |/', bgNotationString)
+        print returnList
+        return returnList
+
+    def movePieces(self, color, bgNotationString):
+        #sample move = ['4', '2', '22', '18', '6', '2']
+        move = self.parse(bgNotationString)
+
+        #moving white color
+        if color == 'W':
+            threadLock.acquire
+            print('white plays')
+            threadLock.release
+            for piece in range(2,len(move),2):
+                if move[piece] == 'bar':
+                    #from the broken zone
+                    if self.brokenZone[0] > 0:
+                        self.brokenZone[0] -= 1
+                        self.positions[25 - int(move[piece + 1])][0] += 1
+                elif move[piece + 1] == 'off':
+                    self.positions[25 - int(move[piece])][0] -= 1
+                    self.gatheringZone[0] += 1
+                else:
+                    self.positions[25 - int(move[piece])][0] -= 1
+                    self.positions[25 - int(move[piece + 1])][0] += 1
+            #breaking the black piece
+            for position in self.positions:
+                if position[0] > 0 and position[1] == 1:
+                    position[1] = 0
+                    self.brokenZone[1] += 1
+        #moving black color
+        else:
+            threadLock.acquire
+            print('black plays')
+            threadLock.release
+            for piece in range(2,len(move),2):
+                if move[piece] == 'bar':
+                    #from the broken zone
+                    if self.brokenZone[1] > 0:
+                        self.brokenZone[1] -= 1
+                        self.positions[int(move[piece + 1])][1] += 1
+                elif move[piece + 1] == 'off':
+                    self.positions[int(move[piece])][1] -= 1
+                    self.gatheringZone[1] += 1
+                else:
+                    self.positions[int(move[piece])][1] -= 1
+                    self.positions[int(move[piece + 1])][1] += 1
+            #breaking the white piece
+            for position in self.positions:
+                if position[1] > 0 and position[0] == 1:
+                    position[0] = 0
+                    self.brokenZone[0] += 1
+
+        #winning decision
+        if self.gatheringZone[0] >= 15:
+            self.buttons[0][0] = 0
+            self.buttons[1][0] = 0
+            return [True,False]
+        elif self.gatheringZone[1] >= 15:
+            self.buttons[0][0] = 0
+            self.buttons[1][0] = 0
+            return [False, True]
+        else:
+            return [False, False]
+
+
 class Games(object):
     def __init__(self):
         self.games = []
@@ -66,7 +151,7 @@ class Games(object):
     def addGame(self, game):
         self.games.append(game)
 
-    def findGameFromUser(self, user):
+    def findGameFromPlayer(self, user):
         for game in self.games:
             if game.whitePlayer == user or game.blackPlayer == user:
                 return game
@@ -154,6 +239,8 @@ class ServerCommandHandler(object):
                 self.receiveChooseWatchCommand(decoded, con, address)
             elif command == 'DROLL':
                 self.receiveRollDiceCommand(decoded, con, address)
+            elif command == 'SMOVE':
+                self.receiveSendMoveCommand(decoded, con, address)
         except ValueError, e:
             print 'valueerror:' +  e.message
         except KeyError, e:
@@ -230,40 +317,86 @@ class ServerCommandHandler(object):
 
     def receiveRollDiceCommand(self, decoded, con, address):
         seqid, user = self.checkInput(con, decoded)
-        if user != None:
-            game = games.findGameFromUser(user)
-            if game == None:
-                self.sendErrorResponse(seqid, 'Technical error. Game not found', con)
-            elif game.gameState.buttons[0][0] != 1 and user.color == 'W':
-                self.sendErrorResponse(seqid, 'Technical error. dice button does not match1', con)
-            elif game.gameState.buttons[1][0] != 1 and user.color == 'B':
-                self.sendErrorResponse(seqid, 'Technical error. dice button does not match2', con)
-            else:
-                randDice1 = randint(1,6)
-                randDice2 = randint(1,6)
-                game.gameState.dice = [randDice1, randDice2]
-                if user.color == 'W':
-                    game.gameState.buttons[0][0] = 0
-                    game.gameState.buttons[0][1] = 1
-                    game.gameState.buttons[0][2] = 0
-                    game.gameState.buttons[1][0] = 0
-                    game.gameState.buttons[1][1] = 0
-                    game.gameState.buttons[1][2] = 0
-                else:
-                    game.gameState.buttons[0][0] = 0
-                    game.gameState.buttons[0][1] = 0
-                    game.gameState.buttons[0][2] = 0
-                    game.gameState.buttons[1][0] = 0
-                    game.gameState.buttons[1][1] = 1
-                    game.gameState.buttons[1][2] = 0
+        if user == None:
+            return
+        game = games.findGameFromPlayer(user)
+        if game == None:
+            self.sendErrorResponse(seqid, 'Technical error. Game not found', con)
+            return
+        elif game.gameState.buttons[0][0] != 1 and user.color == 'W':
+            self.sendErrorResponse(seqid, 'Technical error. dice button does not match1', con)
+            return
+        elif game.gameState.buttons[1][0] != 1 and user.color == 'B':
+            self.sendErrorResponse(seqid, 'Technical error. dice button does not match2', con)
+            return
 
-                self.sendRollDiceResponse(user, game)
+        randDice1 = randint(1,6)
+        randDice2 = randint(1,6)
+        game.gameState.dice = [randDice1, randDice2]
+        if user.color == 'W':
+            game.gameState.buttons[0][0] = 0
+            game.gameState.buttons[0][1] = 1
+            game.gameState.buttons[0][2] = 0
+            game.gameState.buttons[1][0] = 0
+            game.gameState.buttons[1][1] = 0
+            game.gameState.buttons[1][2] = 0
+        else:
+            game.gameState.buttons[0][0] = 0
+            game.gameState.buttons[0][1] = 0
+            game.gameState.buttons[0][2] = 0
+            game.gameState.buttons[1][0] = 0
+            game.gameState.buttons[1][1] = 1
+            game.gameState.buttons[1][2] = 0
+
+        self.sendRollDiceResponse(user, game)
 
     def sendRollDiceResponse(self, user, game):
         dict = JsonDict(user.seqid)
         dict["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict)
-        message = 'RDISC  ' + jsonPart
+        message = 'DROSC  ' + jsonPart
+        sendManager1 = ServerSendManager(game.whitePlayer.con, message)
+        threads.append(sendManager1)
+        sendManager1.start()
+        sendManager2 = ServerSendManager(game.blackPlayer.con, message)
+        threads.append(sendManager2)
+        sendManager2.start()
+        for watcher in game.watchers:
+            sendManager = ServerSendManager(watcher.con, message)
+            threads.append(sendManager)
+            sendManager.start()
+
+    def receiveSendMoveCommand(self, decoded, con, address):
+        seqid, user = self.checkInput(con, decoded)
+        moveString = decoded["move"]
+        if user == None:
+            return
+        game = games.findGameFromPlayer(user)
+        if game == None:
+            self.sendErrorResponse(seqid, 'Technical error. Game not found', con)
+            return
+        elif game.gameState.buttons[0][1] != 1 and user.color == 'W':
+            self.sendErrorResponse(seqid, 'Technical error. send move button does not match1', con)
+            return
+        elif game.gameState.buttons[1][1] != 1 and user.color == 'B':
+            self.sendErrorResponse(seqid, 'Technical error. send move button does not match2', con)
+            return
+        elif not moveString:
+            self.sendErrorResponse(seqid, 'Technical error. move is invalid', con)
+            return
+
+        game.previousGameState = game.gameState
+        game.gameState.buttonsAfterSendMove(user.color)
+        wingame = game.gameState.movePieces(user.color, moveString)
+
+        self.sendSendMoveResponse(user, game, wingame)
+
+    def sendSendMoveResponse(self, user, game, wingame):
+        dict = JsonDict(user.seqid)
+        dict["wingame"] = wingame
+        dict["gamestate"] = game.gameState.__dict__
+        jsonPart = json.dumps(dict)
+        message = 'SMOSC  ' + jsonPart
         sendManager1 = ServerSendManager(game.whitePlayer.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -283,8 +416,6 @@ class ServerCommandHandler(object):
         sendManager = ServerSendManager(con, message)
         threads.append(sendManager)
         sendManager.start()
-
-
 
 class ServerReceiveManager(threading.Thread):
     def __init__(self, con, address):
