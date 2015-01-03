@@ -258,6 +258,8 @@ class ServerCommandHandler(object):
                 self.receiveRollDiceCommand(decoded, con, address)
             elif command == 'SMOVE':
                 self.receiveSendMoveCommand(decoded, con, address)
+            elif command == 'WMOVE':
+                self.receiveWrongMoveAlertCommand(decoded, con, address)
         except ValueError, e:
             print 'valueerror:' +  e.message
         except KeyError, e:
@@ -440,6 +442,41 @@ class ServerCommandHandler(object):
             threads.append(sendManager)
             sendManager.start()
 
+    def receiveWrongMoveAlertCommand(self, decoded, con, address):
+        seqid, user = self.checkInput(con, decoded)
+        if user == None:
+            return
+        game = games.findGameFromPlayer(user)
+        if game == None:
+            self.sendErrorResponse(seqid, 'Technical error. Game not found', con)
+            return
+        elif game.gameState.buttons[0][2] != 1 and user.color == 'W':
+            self.sendErrorResponse(seqid, 'Technical error. wrongmove button does not match1', con)
+            return
+        elif game.gameState.buttons[1][2] != 1 and user.color == 'B':
+            self.sendErrorResponse(seqid, 'Technical error. wrongmove button does not match2', con)
+            return
+
+        game.gameState = copy.deepcopy(game.previousGameState)
+
+        self.sendWrongMoveAlertResponse(user, game)
+
+    def sendWrongMoveAlertResponse(self, user, game):
+        dict = JsonDict(user.seqid)
+        dict["gamestate"] = game.gameState.__dict__
+        jsonPart = json.dumps(dict)
+        message = 'WMOSC  ' + jsonPart
+        sendManager1 = ServerSendManager(game.whitePlayer.con, message)
+        threads.append(sendManager1)
+        sendManager1.start()
+        sendManager2 = ServerSendManager(game.blackPlayer.con, message)
+        threads.append(sendManager2)
+        sendManager2.start()
+        for watcher in game.watchers:
+            sendManager = ServerSendManager(watcher.con, message)
+            threads.append(sendManager)
+            sendManager.start()
+
     def sendErrorResponse(self, seqid, errorMessage, con):
         self.dict = JsonDict(seqid)
         self.dict["message"] = errorMessage
@@ -492,7 +529,7 @@ host = socket.gethostname()
 port = 7500
 s.bind((host, port))
 
-s.listen(100)
+s.listen(200)
 
 while running:
     c, address = s.accept()
