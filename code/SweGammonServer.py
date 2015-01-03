@@ -174,6 +174,14 @@ class Games(object):
                 return game
         return None
 
+    def findGameFromWatcher(self, user):
+        for game in self.games:
+            if len(game.watchers) != 0:
+                for watcher in game.watchers:
+                    if watcher == user:
+                        return game
+        return None
+
 class Game(object):
     def __init__(self):
         self.gameState = GameState()
@@ -260,6 +268,9 @@ class ServerCommandHandler(object):
                 self.receiveSendMoveCommand(decoded, con, address)
             elif command == 'WMOVE':
                 self.receiveWrongMoveAlertCommand(decoded, con, address)
+            elif command == 'HBESC':
+                self.receiveHeartbeatResponse(decoded, con, address)
+
         except ValueError, e:
             print 'valueerror:' +  e.message
         except KeyError, e:
@@ -477,6 +488,25 @@ class ServerCommandHandler(object):
             threads.append(sendManager)
             sendManager.start()
 
+    @staticmethod
+    def sendHeartbeatCommand(seqid, con):
+        dict = JsonDict(seqid)
+        jsonPart = json.dumps(dict)
+        message = 'HBEAT  ' + jsonPart
+        sendManager = ServerSendManager(con, message)
+        threads.append(sendManager)
+        sendManager.start()
+
+    def receiveHeartbeatResponse(self, decoded, con, address):
+        seqid = decoded['seqid']
+        for thread in threads:
+            if type(thread) is HeartbeatSendManager:
+                if thread.c == con:
+                    thread.resetHeartbeatFails()
+        user = users.findUserFromConnection(con)
+        if user != None:
+            user.heartBeatFails = -1
+
     def sendErrorResponse(self, seqid, errorMessage, con):
         self.dict = JsonDict(seqid)
         self.dict["message"] = errorMessage
@@ -486,17 +516,90 @@ class ServerCommandHandler(object):
         threads.append(sendManager)
         sendManager.start()
 
+class HeartbeatSendManager(threading.Thread):
+    def __init__(self, con, address):
+        threading.Thread.__init__(self)
+        self.c = con
+        self.address = address
+        self.seqid = 0
+        self.heartbeatFails = -1
+        self.running = True
+
+    def prepHeartbeatMessage(self, seqid):
+        dict = JsonDict(seqid)
+        jsonPart = json.dumps(dict)
+        message = 'HBEAT  ' + jsonPart
+        return message
+
+    def resetHeartbeatFails(self):
+        self.heartbeatFails = -1
+
+    def disconnectUser(self):
+        print 'disconnect01'
+        self.running = False;
+        for thread in threads:
+            if type(thread) is ServerReceiveManager:
+                if thread.c == self.c:
+                    thread.running = False
+                    thread.join()
+        user = users.findUserFromConnection(self.c)
+        if user == None:
+            c.close()
+            print 'disconnect02'
+            return
+        user.heartbeatFails = 6
+        game = games.findGameFromWatcher(user)
+        if game != None:
+            game.watchers.remove(user)
+            users.users.remove(user)
+            c.close()
+            print 'disconnect03'
+            return
+        game = games.findGameFromPlayer(user)
+        if game == None:
+            users.users.remove(user)
+            c.close()
+            print 'disconnect04'
+            return
+
+        games.games.remove(game)
+        if user.color == 'W':
+            waitingRoom.addToQueue(game.blackPlayer)
+        elif user.color == 'B':
+            waitingRoom.addToQueue(game.whitePlayer)
+        for watcher in game.watchers:
+            waitingRoom.addToQueue(watcher)
+        users.users.remove(user)
+        print 'disconnect05'
+        c.close()
+
+    def run(self):
+        print "Starting HeartbeatManager"
+        while self.running:
+            time.sleep(5)
+            self.seqid += 1
+            self.heartbeatFails += 1
+            if self.heartbeatFails > 6:
+                self.disconnectUser()
+            else:
+                ServerCommandHandler.sendHeartbeatCommand(self.seqid, self.c)
+        print "Exiting HeartbeatManager"
+
 class ServerReceiveManager(threading.Thread):
     def __init__(self, con, address):
         threading.Thread.__init__(self)
         self.c = con
         self.address = address
+        self.running = True
     def run(self):
         print "Starting ServerReceiveManager"
-        while running:
+        while self.running:
             req = self.c.recv(1024)
             serverCommandHandler = ServerCommandHandler()
             serverCommandHandler.handleCommand(req, self.c, self.address)
+        self.c.close()
+        threads.remove(self)
+        self.join()
         print "Exiting ServerReceiveManager"
 
 class ServerSendManager(threading.Thread):
@@ -506,12 +609,9 @@ class ServerSendManager(threading.Thread):
         self.message = message
     def run(self):
         threadLock.acquire
-        print "Starting ServerSendManager"
+        print "Sending: " + self.message
         threadLock.release
         self.c.sendall(self.message)
-        threadLock.acquire
-        print "Exiting ServerSendManager"
-        threadLock.release
         threads.remove(self)
 
 
@@ -537,6 +637,9 @@ while running:
     receiveManager = ServerReceiveManager(c, address)
     threads.append(receiveManager)
     receiveManager.start()
+    heartbeatSendManager = HeartbeatSendManager(c, address)
+    threads.append(heartbeatSendManager)
+    heartbeatSendManager.start()
 
 # Wait for all threads to complete
 for t in threads:
