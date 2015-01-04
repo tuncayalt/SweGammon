@@ -80,7 +80,6 @@ class GameState(object):
         #sample backgammon notation: 2-2: 22/20* bar/22 1/off 2/off
         bgNotationString = bgNotationString.strip()
         returnList = re.split('\* |-|: | |/', bgNotationString)
-        print returnList
         return returnList
 
     def checkWinning(self):
@@ -235,9 +234,6 @@ class JsonDict(dict):
 class ServerCommandHandler(object):
     def requestParser(self,req):
         reqList = re.split('  ',req)
-        threadLock.acquire
-        print reqList
-        threadLock.release
         return reqList[0], reqList[1]
 
     def checkInput(self, con, decoded):
@@ -252,9 +248,9 @@ class ServerCommandHandler(object):
     def handleCommand(self, req, con, address):
         try:
             command, jsonString = self.requestParser(req)
-            threadLock.acquire
-            print command + ' ' + jsonString
-            threadLock.release
+            # threadLock.acquire
+            # print command + ' ' + jsonString
+            # threadLock.release
             decoded = json.loads(jsonString)
             if command == 'LOGIN':
                 self.receiveLoginCommand(decoded, con, address)
@@ -595,6 +591,9 @@ class ServerReceiveManager(threading.Thread):
         print "Starting ServerReceiveManager"
         while self.running:
             req = self.c.recv(1024)
+            threadLock.acquire
+            print 'Receiving: ' + req
+            threadLock.release
             serverCommandHandler = ServerCommandHandler()
             serverCommandHandler.handleCommand(req, self.c, self.address)
         self.c.close()
@@ -609,7 +608,7 @@ class ServerSendManager(threading.Thread):
         self.message = message
     def run(self):
         threadLock.acquire
-        print "Sending: " + self.message
+        print "Sending  : " + self.message
         threadLock.release
         self.c.sendall(self.message)
         threads.remove(self)
