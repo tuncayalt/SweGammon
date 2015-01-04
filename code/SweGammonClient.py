@@ -46,11 +46,13 @@ class ReceiveManager(threading.Thread):
 class Session(object):
     def __init__(self):
         self.seqid = 0
+        self.userType = ''
         self.userName = ''
         self.color = ''
         self.serverIp = ''
         self.serverPort = ''
         self.gameState = GameState()
+
     def initGameState(self):
         self.gameState = None
         self.gameState = GameState()
@@ -76,9 +78,6 @@ class CommandHandler(threading.Thread):
     def handleCommand(self, message):
         try:
             command, jsonString = self.requestParser(message)
-            # threadLock.acquire
-            # print command + ' ' + jsonString
-            # threadLock.release
             decoded = json.loads(jsonString)
             #session.initGameState()
             if command == 'LOGSC':
@@ -180,17 +179,28 @@ class CommandHandler(threading.Thread):
 
     def receiveChoosePlayResponse(self, decoded):
         seqid = decoded['seqid']
+        session.userType = 'P'
         session.color = decoded['color']
         session.opponent = decoded['opponent']
         self.getGameStateFromResponse(decoded)
         sweGammonGui.showPlayerGameScreen()
 
-    # def receiveIWantToWatchResponse(self, decoded):
+    def receiveChooseWatchResponse(self, decoded):
+        seqid = decoded['seqid']
+        session.userType = 'W'
+        session.color = 'W'
+        session.userName = decoded['player1']
+        session.opponent = decoded['player2']
+        self.getGameStateFromResponse(decoded)
+        sweGammonGui.showWatcherGameScreen()
     #
     def receiveRollDiceResponse(self, decoded):
         seqid = decoded['seqid']
         self.getGameStateFromResponse(decoded)
-        sweGammonGui.showPlayerGameScreen()
+        if session.userType == 'W':
+            sweGammonGui.showWatcherGameScreen()
+        else:
+            sweGammonGui.showPlayerGameScreen()
     #
     def receiveSendMoveResponse(self, decoded):
         seqid = decoded['seqid']
@@ -198,47 +208,32 @@ class CommandHandler(threading.Thread):
         winGame[0] = decoded['wingame'][0]
         winGame[1] = decoded['wingame'][1]
         self.getGameStateFromResponse(decoded)
-        sweGammonGui.showPlayerGameScreen()
+        if session.userType == 'W':
+            sweGammonGui.showWatcherGameScreen()
+        else:
+            sweGammonGui.showPlayerGameScreen()
     #
     def receiveWrongMoveAlertResponse(self, decoded):
         seqid = decoded['seqid']
         self.getGameStateFromResponse(decoded)
-        sweGammonGui.showPlayerGameScreen()
+        if session.userType == 'W':
+            sweGammonGui.showWatcherGameScreen()
+        else:
+            sweGammonGui.showPlayerGameScreen()
 
     def receiveHeartbeatResponse(self, decoded):
         seqid = decoded['seqid']
         self.sendHeartbeatResponse(seqid)
 
 
-
-
 class GUIManager(Frame):
-
-
     def __init__(self, master):
         Frame.__init__(self, master, background = "white")
         self.master = master
         self.grid(column=0, row=0, sticky=(N, W, E, S))
 
-
     def initialize(self):
         self.showLoginScreen(None)
-
-
-        # session.gameState = GameState()
-        # self.stringToButtons(session.gameState)
-
-
-    def stringToButtons(self, state):
-        for i in range(0, 26):
-            for j in range(0, 1):
-
-                self.button = Button()
-                self.button.grid()
-                self.button.configure(bg = "#000000")
-                #self.button.place(x = i * 30, y = (j+1) * 30, width = 30, height = 30)
-
-
 
     def showLoginScreen(self, alreadyExistMessage):
         threadLock.acquire
@@ -263,6 +258,7 @@ class GUIManager(Frame):
         widgets.append(self.lblIp)
         self.txtIp = Entry(self)
         self.txtIp.grid(column=2, row=4, sticky=(W))
+        self.txtIp.insert(0, str(socket.gethostname()))
         widgets.append(self.txtIp)
         self.btnLogin = Button(self, text='Login', command=sendLogin)
         self.btnLogin.grid(column=2, row=5, sticky=(W, E))
@@ -284,19 +280,11 @@ class GUIManager(Frame):
         widgets.append(self.btnChooseWatch)
         threadLock.release
 
-    # def iWantToPlayOrWatch(self, choice):
-    #
-    # #def showNoActiveUsers(self):
-    #
-    # #def showNoActiveGames(self):
     #
     def showPlayerGameScreen(self):
         threadLock.acquire
         for widget in widgets:
             widget.grid_forget()
-        # self.lblLoggedIn.grid_forget()
-        # self.btnChoosePlay.grid_forget()
-        # self.btnChooseWatch.grid_forget()
         self.lblHeader = Label(self, text='SweGammon Board')
         self.lblHeader.grid(column=1, row=1, sticky=(W, E))
         widgets.append(self.lblHeader)
@@ -413,6 +401,7 @@ class GUIManager(Frame):
         widgets.append(self.btnRollDice)
         self.txtMove = Entry(self)
         self.txtMove.grid(column=2, row=12, sticky=(E))
+        self.txtMove.insert(0, str(session.gameState.dice[0]) + '-' + str(session.gameState.dice[1]) + ': ')
         widgets.append(self.txtMove)
         self.btnSendMove = Button(self, text='Send Move', command=sendSendMove)
         self.btnSendMove.grid(column=2, row=13, sticky=(E))
@@ -424,12 +413,103 @@ class GUIManager(Frame):
         widgets.append(self.btnWrongMoveAlert)
         threadLock.release
     #
-    # def throwDice(self):
-    #
-    # def sendMove(self):
-    #
-    # def wrongMoveAlert(self):
+    def showWatcherGameScreen(self):
+        threadLock.acquire
+        for widget in widgets:
+            widget.grid_forget()
+        self.lblHeader = Label(self, text='SweGammon Board')
+        self.lblHeader.grid(column=1, row=1, sticky=(W, E))
+        widgets.append(self.lblHeader)
+        whitePositions = []
+        whitePositions.append('0')
+        blackPositions = []
+        blackPositions.append('0')
 
+        opponentColor = 'Black'
+        youColor = 'White'
+        opponentGatheringZone = str(session.gameState.gatheringZone[1]) + 'B'
+        opponentBrokenZone = str(session.gameState.brokenZone[1]) + 'B'
+        youGatheringZone = str(session.gameState.gatheringZone[0]) + 'W'
+        youBrokenZone = str(session.gameState.brokenZone[0]) + 'W'
+        for i in range(1, len(session.gameState.positions)):
+            whitePositions.append(str(session.gameState.positions[i][0]) + 'W')
+            blackPositions.append(str(session.gameState.positions[i][1]) + 'B')
+        rollDiceButton = 'disabled'
+        sendMoveButton = 'disabled'
+        wrongMoveButton = 'disabled'
+        print whitePositions
+        print blackPositions
+        self.lblOpponent = Label(self, text='Player1 ' + opponentColor + ': ')
+        self.lblOpponent.grid(column=1, row=2, sticky=(W, E))
+        widgets.append(self.lblOpponent)
+        self.lblOpponentName = Label(self, text=session.opponent)
+        self.lblOpponentName.grid(column=2, row=2, sticky=(W, E))
+        widgets.append(self.lblOpponentName)
+        self.lblOpponentGathering = Label(self, text=opponentColor + ' gathered: ' + opponentGatheringZone + '||')
+        self.lblOpponentGathering.grid(column=1, row=4, sticky=(E))
+        widgets.append(self.lblOpponentGathering)
+        self.lblYouBroken = Label(self, text=youColor + ' broken: ' + youBrokenZone + '||')
+        self.lblYouBroken.grid(column=1, row=5, sticky=(E))
+        widgets.append(self.lblYouBroken)
+        self.lblOpponentBroken = Label(self, text=opponentColor + ' broken: ' + opponentBrokenZone + '||')
+        self.lblOpponentBroken.grid(column=1, row=6, sticky=(E))
+        widgets.append(self.lblOpponentBroken)
+        self.lblYouGathering = Label(self, text=youColor + ' gathered: ' + youGatheringZone + '||')
+        self.lblYouGathering.grid(column=1, row=7, sticky=(E))
+        widgets.append(self.lblYouGathering)
+        for i in range(1,13):
+            if whitePositions[i] == '0W' and blackPositions[i] == '0B':
+                lblPosition = Label(self, text='  |')
+                lblPosition.grid(column=2+i, row=3, sticky=(E))
+                widgets.append(lblPosition)
+            elif blackPositions[i] == '0B':
+                lblPosition = Label(self, text=whitePositions[i] + '|')
+                lblPosition.grid(column=2+i, row=3, sticky=(E))
+                widgets.append(lblPosition)
+            else:
+                lblPosition = Label(self, text=blackPositions[i] + '|')
+                lblPosition.grid(column=2+i, row=3, sticky=(E))
+                widgets.append(lblPosition)
+        for i in range(13,25):
+            if whitePositions[i] == '0W' and blackPositions[i] == '0B':
+                lblPosition = Label(self, text='  |')
+                lblPosition.grid(column=27-i, row=8, sticky=(E))
+                widgets.append(lblPosition)
+            elif blackPositions[i] == '0B':
+                lblPosition = Label(self, text=whitePositions[i] + '|')
+                lblPosition.grid(column=27-i, row=8, sticky=(E))
+                widgets.append(lblPosition)
+            else:
+                lblPosition = Label(self, text=blackPositions[i] + '|')
+                lblPosition.grid(column=27-i, row=8, sticky=(E))
+                widgets.append(lblPosition)
+        self.lblYou = Label(self, text='Player2 ' + youColor + ': ')
+        self.lblYou.grid(column=1, row=9, sticky=(W, E))
+        widgets.append(self.lblYou)
+        self.lblYourName = Label(self, text=session.userName)
+        self.lblYourName.grid(column=2, row=9, sticky=(W, E))
+        widgets.append(self.lblYourName)
+        self.lblDice = Label(self, text='Dice: ' + str(session.gameState.dice[0]) + '-' + str(session.gameState.dice[1]))
+        self.lblDice.grid(column=2, row=10, sticky=(E))
+        widgets.append(self.lblDice)
+        self.btnRollDice = Button(self, text='Roll Dice', command=sendRollDice)
+        self.btnRollDice.grid(column=2, row=11, sticky=(E))
+        self.btnRollDice.config(state=rollDiceButton)
+        widgets.append(self.btnRollDice)
+        self.txtMove = Entry(self)
+        self.txtMove.grid(column=2, row=12, sticky=(E))
+        widgets.append(self.txtMove)
+        self.btnSendMove = Button(self, text='Send Move', command=sendSendMove)
+        self.btnSendMove.grid(column=2, row=13, sticky=(E))
+        self.btnSendMove.config(state=sendMoveButton)
+        widgets.append(self.btnSendMove)
+        self.btnWrongMoveAlert = Button(self, text='Wrong Move Alert', command=sendWrongMoveAlert)
+        self.btnWrongMoveAlert.grid(column=2, row=14, sticky=(E))
+        self.btnWrongMoveAlert.config(state=wrongMoveButton)
+        widgets.append(self.btnWrongMoveAlert)
+        threadLock.release
+
+#button commands
 def sendLogin(*args):
     #host = socket.gethostname() # Get local machine name
     #print str(host)
@@ -458,7 +538,7 @@ widgets = []
 
 s = socket.socket() # Create a socket object
 host = '' # Get local machine name
-port = 7500 # Reserve a port for your service.
+port = 7500 # Reserve a port for our service.
 # s.connect((host, port))
 
 session = Session()
