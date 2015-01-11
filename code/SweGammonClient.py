@@ -237,49 +237,35 @@ class GUIManager(Frame):
 
     def showLoginScreen(self, alreadyExistMessage):
         threadLock.acquire
-        # for widget in widgets:
-        #     widget.grid_forget
         self = GUIManager(root)
         self.lblGreetings = Label(self, text='Welcome to SweGammon!')
         self.lblGreetings.grid(column=1, row=1, sticky=(W, E))
-        widgets.append(self.lblGreetings)
         self.lblError = Label(self, text=alreadyExistMessage)
         if alreadyExistMessage != None:
             self.lblError.grid(column=1, row=2, sticky=(W, E))
-        widgets.append(self.lblError)
         self.lblUser = Label(self, text='Username ')
         self.lblUser.grid(column=1, row=3, sticky=(W))
-        widgets.append(self.lblUser)
         self.txtUser = Entry(self)
         self.txtUser.grid(column=2, row=3, sticky=(W))
-        widgets.append(self.txtUser)
         self.lblIp = Label(self, text='IP Address ')
         self.lblIp.grid(column=1, row=4, sticky=(W))
-        widgets.append(self.lblIp)
         self.txtIp = Entry(self)
         self.txtIp.grid(column=2, row=4, sticky=(W))
         self.txtIp.insert(0, str(socket.gethostname()))
-        widgets.append(self.txtIp)
         self.btnLogin = Button(self, text='Login', command=sendLogin)
         self.btnLogin.grid(column=2, row=5, sticky=(W, E))
-        widgets.append(self.btnLogin)
         session.gui = self
         threadLock.release
 
     def showConnectedScreen(self):
         threadLock.acquire
-        # for widget in widgets:
-        #     widget.grid_forget()
         self = GUIManager(root)
         self.lblLoggedIn = Label(self, text='You are logged in!')
         self.lblLoggedIn.grid(column=1, row=1, sticky=(W, E))
-        widgets.append(self.lblLoggedIn)
         self.btnChoosePlay = Button(self, text='I want to play', command=sendChoosePlay)
         self.btnChoosePlay.grid(column=1, row=2, sticky=(W, E))
-        widgets.append(self.btnChoosePlay)
         self.btnChooseWatch = Button(self, text='I want to watch', command=sendChooseWatch)
         self.btnChooseWatch.grid(column=1, row=3, sticky=(W, E))
-        widgets.append(self.btnChooseWatch)
         session.gui = self
         threadLock.release
 
@@ -287,44 +273,33 @@ class GUIManager(Frame):
         for i in range(1, 13):
             lblTopNumbers = Label(self, text=str(25 - i))
             lblTopNumbers.grid(column=2 + i, row=3, sticky=(W, E))
-            widgets.append(lblTopNumbers)
             if whitePositions[i] == '0W' and blackPositions[i] == '0B':
                 lblPosition = Label(self, text='  |')
                 lblPosition.grid(column=2 + i, row=4, sticky=(E))
-                widgets.append(lblPosition)
             elif blackPositions[i] == '0B':
                 lblPosition = Label(self, text=whitePositions[i] + '|')
                 lblPosition.grid(column=2 + i, row=4, sticky=(E))
-                widgets.append(lblPosition)
             else:
                 lblPosition = Label(self, text=blackPositions[i] + '|')
                 lblPosition.grid(column=2 + i, row=4, sticky=(E))
-                widgets.append(lblPosition)
         for i in range(13, 25):
             if whitePositions[i] == '0W' and blackPositions[i] == '0B':
                 lblPosition = Label(self, text='  |')
                 lblPosition.grid(column=27 - i, row=9, sticky=(E))
-                widgets.append(lblPosition)
             elif blackPositions[i] == '0B':
                 lblPosition = Label(self, text=whitePositions[i] + '|')
                 lblPosition.grid(column=27 - i, row=9, sticky=(E))
-                widgets.append(lblPosition)
             else:
                 lblPosition = Label(self, text=blackPositions[i] + '|')
                 lblPosition.grid(column=27 - i, row=9, sticky=(E))
-                widgets.append(lblPosition)
             lblBottomNumbers = Label(self, text=str(25 - i))
             lblBottomNumbers.grid(column=27 - i, row=10, sticky=(W, E))
-            widgets.append(lblBottomNumbers)
     #
     def showPlayerGameScreen(self):
         threadLock.acquire
-        # for widget in widgets:
-        #     widget.grid_forget()
         self = GUIManager(root)
         self.lblHeader = Label(self, text='SweGammon Board')
         self.lblHeader.grid(column=1, row=1, sticky=(W, E))
-        widgets.append(self.lblHeader)
         whitePositions = []
         whitePositions.append('0')
         blackPositions = []
@@ -381,50 +356,37 @@ class GUIManager(Frame):
 
         self.lblOpponent = Label(self, text='Opponent ' + opponentColor + ': ')
         self.lblOpponent.grid(column=1, row=2, sticky=(W, E))
-        widgets.append(self.lblOpponent)
         self.lblOpponentName = Label(self, text=session.opponent)
         self.lblOpponentName.grid(column=2, row=2, sticky=(W, E))
-        widgets.append(self.lblOpponentName)
         self.lblOpponentGathering = Label(self, text=opponentColor + ' gathered: ' + opponentGatheringZone + '||')
         self.lblOpponentGathering.grid(column=1, row=5, sticky=(E))
-        widgets.append(self.lblOpponentGathering)
         self.lblYouBroken = Label(self, text=youColor + ' broken: ' + youBrokenZone + '||')
         self.lblYouBroken.grid(column=1, row=6, sticky=(E))
-        widgets.append(self.lblYouBroken)
         self.lblOpponentBroken = Label(self, text=opponentColor + ' broken: ' + opponentBrokenZone + '||')
         self.lblOpponentBroken.grid(column=1, row=7, sticky=(E))
-        widgets.append(self.lblOpponentBroken)
         self.lblYouGathering = Label(self, text=youColor + ' gathered: ' + youGatheringZone + '||')
         self.lblYouGathering.grid(column=1, row=8, sticky=(E))
-        widgets.append(self.lblYouGathering)
 
         self.setPiecePositions(blackPositions, whitePositions)
 
         self.lblYou = Label(self, text='You ' + youColor + ': ')
         self.lblYou.grid(column=1, row=11, sticky=(W, E))
-        widgets.append(self.lblYou)
         self.lblYourName = Label(self, text=session.userName)
         self.lblYourName.grid(column=2, row=11, sticky=(W, E))
-        widgets.append(self.lblYourName)
         self.lblDice = Label(self, text='Dice: ' + str(session.gameState.dice[0]) + '-' + str(session.gameState.dice[1]))
         self.lblDice.grid(column=2, row=12, sticky=(E))
-        widgets.append(self.lblDice)
         self.btnRollDice = Button(self, text='Roll Dice', command=sendRollDice)
         self.btnRollDice.grid(column=2, row=13, sticky=(E))
         self.btnRollDice.config(state=rollDiceButton)
-        widgets.append(self.btnRollDice)
         self.txtMove = Entry(self)
         self.txtMove.grid(column=2, row=14, sticky=(E))
         self.txtMove.insert(0, str(session.gameState.dice[0]) + '-' + str(session.gameState.dice[1]) + ': ')
-        widgets.append(self.txtMove)
         self.btnSendMove = Button(self, text='Send Move', command=sendSendMove)
         self.btnSendMove.grid(column=2, row=15, sticky=(E))
         self.btnSendMove.config(state=sendMoveButton)
-        widgets.append(self.btnSendMove)
         self.btnWrongMoveAlert = Button(self, text='Wrong Move Alert', command=sendWrongMoveAlert)
         self.btnWrongMoveAlert.grid(column=2, row=16, sticky=(E))
         self.btnWrongMoveAlert.config(state=wrongMoveButton)
-        widgets.append(self.btnWrongMoveAlert)
         session.gui = self
         threadLock.release
     #
@@ -432,12 +394,9 @@ class GUIManager(Frame):
 
     def showWatcherGameScreen(self):
         threadLock.acquire
-        # for widget in widgets:
-        #     widget.grid_forget()
         self = GUIManager(root)
         self.lblHeader = Label(self, text='SweGammon Board')
         self.lblHeader.grid(column=1, row=1, sticky=(W, E))
-        widgets.append(self.lblHeader)
         whitePositions = []
         whitePositions.append('0')
         blackPositions = []
@@ -459,47 +418,34 @@ class GUIManager(Frame):
         print blackPositions
         self.lblOpponent = Label(self, text='Player1 ' + opponentColor + ': ')
         self.lblOpponent.grid(column=1, row=2, sticky=(W, E))
-        widgets.append(self.lblOpponent)
         self.lblOpponentName = Label(self, text=session.opponent)
         self.lblOpponentName.grid(column=2, row=2, sticky=(W, E))
-        widgets.append(self.lblOpponentName)
         self.lblOpponentGathering = Label(self, text=opponentColor + ' gathered: ' + opponentGatheringZone + '||')
         self.lblOpponentGathering.grid(column=1, row=5, sticky=(E))
-        widgets.append(self.lblOpponentGathering)
         self.lblYouBroken = Label(self, text=youColor + ' broken: ' + youBrokenZone + '||')
         self.lblYouBroken.grid(column=1, row=6, sticky=(E))
-        widgets.append(self.lblYouBroken)
         self.lblOpponentBroken = Label(self, text=opponentColor + ' broken: ' + opponentBrokenZone + '||')
         self.lblOpponentBroken.grid(column=1, row=7, sticky=(E))
-        widgets.append(self.lblOpponentBroken)
         self.lblYouGathering = Label(self, text=youColor + ' gathered: ' + youGatheringZone + '||')
         self.lblYouGathering.grid(column=1, row=8, sticky=(E))
-        widgets.append(self.lblYouGathering)
         self.setPiecePositions(blackPositions, whitePositions)
         self.lblYou = Label(self, text='Player2 ' + youColor + ': ')
         self.lblYou.grid(column=1, row=11, sticky=(W, E))
-        widgets.append(self.lblYou)
         self.lblYourName = Label(self, text=session.userName)
         self.lblYourName.grid(column=2, row=11, sticky=(W, E))
-        widgets.append(self.lblYourName)
         self.lblDice = Label(self, text='Dice: ' + str(session.gameState.dice[0]) + '-' + str(session.gameState.dice[1]))
         self.lblDice.grid(column=2, row=12, sticky=(E))
-        widgets.append(self.lblDice)
         self.btnRollDice = Button(self, text='Roll Dice', command=sendRollDice)
         self.btnRollDice.grid(column=2, row=13, sticky=(E))
         self.btnRollDice.config(state=rollDiceButton)
-        widgets.append(self.btnRollDice)
         self.txtMove = Entry(self)
         self.txtMove.grid(column=2, row=14, sticky=(E))
-        widgets.append(self.txtMove)
         self.btnSendMove = Button(self, text='Send Move', command=sendSendMove)
         self.btnSendMove.grid(column=2, row=15, sticky=(E))
         self.btnSendMove.config(state=sendMoveButton)
-        widgets.append(self.btnSendMove)
         self.btnWrongMoveAlert = Button(self, text='Wrong Move Alert', command=sendWrongMoveAlert)
         self.btnWrongMoveAlert.grid(column=2, row=16, sticky=(E))
         self.btnWrongMoveAlert.config(state=wrongMoveButton)
-        widgets.append(self.btnWrongMoveAlert)
         session.gui = self
         threadLock.release
 
@@ -526,7 +472,6 @@ def sendWrongMoveAlert(*args):
     CommandHandler.sendWrongMoveAlertCommand()
 
 threads = []
-widgets = []
 
 s = socket.socket() # Create a socket object
 host = '' # Get local machine name
