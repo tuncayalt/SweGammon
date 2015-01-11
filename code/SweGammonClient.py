@@ -1,5 +1,4 @@
 from Tkinter import *
-import tkMessageBox
 import threading
 import socket
 import json
@@ -44,7 +43,7 @@ class ReceiveManager(threading.Thread):
             commandHandler.start()
 
 class Session(object):
-    def __init__(self):
+    def __init__(self, root):
         self.seqid = 0
         self.userType = ''
         self.userName = ''
@@ -52,6 +51,7 @@ class Session(object):
         self.serverIp = ''
         self.serverPort = ''
         self.gameState = GameState()
+        self.gui = GUIManager(root)
 
     def initGameState(self):
         self.gameState = None
@@ -158,9 +158,9 @@ class CommandHandler(threading.Thread):
         except:
             message = None
         if message == None:
-            sweGammonGui.showConnectedScreen()
+            session.gui.showConnectedScreen()
         else:
-            sweGammonGui.showLoginScreen(seqid, message)
+            session.gui.showLoginScreen(seqid, message)
 
     def getGameStateFromResponse(self, decoded):
         session.gameState.dice[0] = decoded['gamestate']['dice'][0]
@@ -183,7 +183,7 @@ class CommandHandler(threading.Thread):
         session.color = decoded['color']
         session.opponent = decoded['opponent']
         self.getGameStateFromResponse(decoded)
-        sweGammonGui.showPlayerGameScreen()
+        session.gui.showPlayerGameScreen()
 
     def receiveChooseWatchResponse(self, decoded):
         seqid = decoded['seqid']
@@ -192,15 +192,15 @@ class CommandHandler(threading.Thread):
         session.userName = decoded['player1']
         session.opponent = decoded['player2']
         self.getGameStateFromResponse(decoded)
-        sweGammonGui.showWatcherGameScreen()
+        session.gui.showWatcherGameScreen()
     #
     def receiveRollDiceResponse(self, decoded):
         seqid = decoded['seqid']
         self.getGameStateFromResponse(decoded)
         if session.userType == 'W':
-            sweGammonGui.showWatcherGameScreen()
+            session.gui.showWatcherGameScreen()
         else:
-            sweGammonGui.showPlayerGameScreen()
+            session.gui.showPlayerGameScreen()
     #
     def receiveSendMoveResponse(self, decoded):
         seqid = decoded['seqid']
@@ -209,17 +209,17 @@ class CommandHandler(threading.Thread):
         winGame[1] = decoded['wingame'][1]
         self.getGameStateFromResponse(decoded)
         if session.userType == 'W':
-            sweGammonGui.showWatcherGameScreen()
+            session.gui.showWatcherGameScreen()
         else:
-            sweGammonGui.showPlayerGameScreen()
+            session.gui.showPlayerGameScreen()
     #
     def receiveWrongMoveAlertResponse(self, decoded):
         seqid = decoded['seqid']
         self.getGameStateFromResponse(decoded)
         if session.userType == 'W':
-            sweGammonGui.showWatcherGameScreen()
+            session.gui.showWatcherGameScreen()
         else:
-            sweGammonGui.showPlayerGameScreen()
+            session.gui.showPlayerGameScreen()
 
     def receiveHeartbeatResponse(self, decoded):
         seqid = decoded['seqid']
@@ -237,9 +237,9 @@ class GUIManager(Frame):
 
     def showLoginScreen(self, alreadyExistMessage):
         threadLock.acquire
-        for widget in widgets:
-            widget.grid_forget
-
+        # for widget in widgets:
+        #     widget.grid_forget
+        self = GUIManager(root)
         self.lblGreetings = Label(self, text='Welcome to SweGammon!')
         self.lblGreetings.grid(column=1, row=1, sticky=(W, E))
         widgets.append(self.lblGreetings)
@@ -263,12 +263,14 @@ class GUIManager(Frame):
         self.btnLogin = Button(self, text='Login', command=sendLogin)
         self.btnLogin.grid(column=2, row=5, sticky=(W, E))
         widgets.append(self.btnLogin)
+        session.gui = self
         threadLock.release
 
     def showConnectedScreen(self):
         threadLock.acquire
-        for widget in widgets:
-            widget.grid_forget()
+        # for widget in widgets:
+        #     widget.grid_forget()
+        self = GUIManager(root)
         self.lblLoggedIn = Label(self, text='You are logged in!')
         self.lblLoggedIn.grid(column=1, row=1, sticky=(W, E))
         widgets.append(self.lblLoggedIn)
@@ -278,6 +280,7 @@ class GUIManager(Frame):
         self.btnChooseWatch = Button(self, text='I want to watch', command=sendChooseWatch)
         self.btnChooseWatch.grid(column=1, row=3, sticky=(W, E))
         widgets.append(self.btnChooseWatch)
+        session.gui = self
         threadLock.release
 
     def setPiecePositions(self, blackPositions, whitePositions):
@@ -316,8 +319,9 @@ class GUIManager(Frame):
     #
     def showPlayerGameScreen(self):
         threadLock.acquire
-        for widget in widgets:
-            widget.grid_forget()
+        # for widget in widgets:
+        #     widget.grid_forget()
+        self = GUIManager(root)
         self.lblHeader = Label(self, text='SweGammon Board')
         self.lblHeader.grid(column=1, row=1, sticky=(W, E))
         widgets.append(self.lblHeader)
@@ -421,14 +425,16 @@ class GUIManager(Frame):
         self.btnWrongMoveAlert.grid(column=2, row=16, sticky=(E))
         self.btnWrongMoveAlert.config(state=wrongMoveButton)
         widgets.append(self.btnWrongMoveAlert)
+        session.gui = self
         threadLock.release
     #
 
 
     def showWatcherGameScreen(self):
         threadLock.acquire
-        for widget in widgets:
-            widget.grid_forget()
+        # for widget in widgets:
+        #     widget.grid_forget()
+        self = GUIManager(root)
         self.lblHeader = Label(self, text='SweGammon Board')
         self.lblHeader.grid(column=1, row=1, sticky=(W, E))
         widgets.append(self.lblHeader)
@@ -494,28 +500,27 @@ class GUIManager(Frame):
         self.btnWrongMoveAlert.grid(column=2, row=16, sticky=(E))
         self.btnWrongMoveAlert.config(state=wrongMoveButton)
         widgets.append(self.btnWrongMoveAlert)
+        session.gui = self
         threadLock.release
 
 #button commands
 def sendLogin(*args):
     #host = socket.gethostname() # Get local machine name
     #print str(host)
-    host = sweGammonGui.txtIp.get()
+    host = session.gui.txtIp.get()
     s.connect((host, port))
     time.sleep(2)
     receiveManager.start()
-    session.userName = sweGammonGui.txtUser.get()
+    session.userName = session.gui.txtUser.get()
     CommandHandler.sendLoginCommand()
 def sendChoosePlay(*args):
-    session.userName = sweGammonGui.txtUser.get()
     CommandHandler.sendChoosePlayCommand()
 def sendChooseWatch(*args):
-    session.userName = sweGammonGui.txtUser.get()
     CommandHandler.sendChooseWatchCommand()
 def sendRollDice(*args):
     CommandHandler.sendRollDiceCommand()
 def sendSendMove(*args):
-    move = sweGammonGui.txtMove.get()
+    move = session.gui.txtMove.get()
     CommandHandler.sendSendMoveCommand(move)
 def sendWrongMoveAlert(*args):
     CommandHandler.sendWrongMoveAlertCommand()
@@ -528,8 +533,6 @@ host = '' # Get local machine name
 port = 7500 # Reserve a port for our service.
 # s.connect((host, port))
 
-session = Session()
-
 receiveManager = ReceiveManager()
 threads.append(receiveManager)
 #receiveManager.start()
@@ -537,8 +540,8 @@ threads.append(receiveManager)
 root = Tk()
 root.title("SweGammon")
 root.geometry("700x500+300+300")
-sweGammonGui = GUIManager(root)
-sweGammonGui.initialize()
+session = Session(root)
+session.gui.initialize()
 root.mainloop()
 
 
