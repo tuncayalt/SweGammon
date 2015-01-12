@@ -6,6 +6,7 @@ import re
 import Queue
 from random import randint
 import copy
+import errno
 
 threadLock = threading.Lock()
 
@@ -234,7 +235,7 @@ class JsonDict(dict):
 
 class ServerCommandHandler(object):
     def requestParser(self,req):
-        reqList = re.split('  ',req)
+        reqList = re.split('   ',req)
         return reqList[0], reqList[1]
 
     def checkInput(self, con, decoded):
@@ -249,10 +250,8 @@ class ServerCommandHandler(object):
     def handleCommand(self, req, con, address):
         try:
             command, jsonString = self.requestParser(req)
-            # threadLock.acquire
-            # print command + ' ' + jsonString
-            # threadLock.release
             decoded = json.loads(jsonString)
+
             if command == 'LOGIN':
                 self.receiveLoginCommand(decoded, con, address)
             elif command == 'SPLAY':
@@ -291,7 +290,7 @@ class ServerCommandHandler(object):
             self.dict["message"] = userName + ' already exists. Please choose another username.'
 
         jsonPart = json.dumps(self.dict)
-        message = 'LOGSC  ' + jsonPart
+        message = 'LOGSC   ' + jsonPart
         sendManager = ServerSendManager(con, message)
         threads.append(sendManager)
         sendManager.start()
@@ -309,7 +308,7 @@ class ServerCommandHandler(object):
         dict1["opponent"] = opponentUser.userName
         dict1["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict1)
-        message = 'SPLSC  ' + jsonPart
+        message = 'SPLSC   ' + jsonPart
         sendManager1 = ServerSendManager(user.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -319,7 +318,7 @@ class ServerCommandHandler(object):
         dict2["opponent"] = user.userName
         dict2["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict2)
-        message = 'SPLSC  ' + jsonPart
+        message = 'SPLSC   ' + jsonPart
         sendManager2 = ServerSendManager(opponentUser.con, message)
         threads.append(sendManager2)
         sendManager2.start()
@@ -337,7 +336,7 @@ class ServerCommandHandler(object):
         dict1["player2"] = game.blackPlayer.userName
         dict1["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict1)
-        message = 'SWASC  ' + jsonPart
+        message = 'SWASC   ' + jsonPart
         sendManager1 = ServerSendManager(user.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -381,7 +380,7 @@ class ServerCommandHandler(object):
         dict = JsonDict(user.seqid)
         dict["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict)
-        message = 'DROSC  ' + jsonPart
+        message = 'DROSC   ' + jsonPart
         sendManager1 = ServerSendManager(game.whitePlayer.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -438,7 +437,7 @@ class ServerCommandHandler(object):
         dict["wingame"] = wingame
         dict["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict)
-        message = 'SMOSC  ' + jsonPart
+        message = 'SMOSC   ' + jsonPart
         sendManager1 = ServerSendManager(game.whitePlayer.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -473,7 +472,7 @@ class ServerCommandHandler(object):
         dict = JsonDict(user.seqid)
         dict["gamestate"] = game.gameState.__dict__
         jsonPart = json.dumps(dict)
-        message = 'WMOSC  ' + jsonPart
+        message = 'WMOSC   ' + jsonPart
         sendManager1 = ServerSendManager(game.whitePlayer.con, message)
         threads.append(sendManager1)
         sendManager1.start()
@@ -489,7 +488,7 @@ class ServerCommandHandler(object):
     def sendHeartbeatCommand(seqid, con):
         dict = JsonDict(seqid)
         jsonPart = json.dumps(dict)
-        message = 'HBEAT  ' + jsonPart
+        message = 'HBEAT   ' + jsonPart
         sendManager = ServerSendManager(con, message)
         threads.append(sendManager)
         sendManager.start()
@@ -508,7 +507,7 @@ class ServerCommandHandler(object):
         self.dict = JsonDict(seqid)
         self.dict["message"] = errorMessage
         jsonPart = json.dumps(self.dict)
-        message = 'ERROR  ' + jsonPart
+        message = 'ERROR   ' + jsonPart
         sendManager = ServerSendManager(con, message)
         threads.append(sendManager)
         sendManager.start()
@@ -525,15 +524,17 @@ class HeartbeatSendManager(threading.Thread):
     def prepHeartbeatMessage(self, seqid):
         dict = JsonDict(seqid)
         jsonPart = json.dumps(dict)
-        message = 'HBEAT  ' + jsonPart
+        message = 'HBEAT   ' + jsonPart
         return message
 
     def resetHeartbeatFails(self):
         self.heartbeatFails = -1
 
     def disconnectUser(self):
-        print 'disconnect01'
-        self.running = False;
+        user = users.findUserFromConnection(self.c)
+        print 'Lack of heartbeat response from user ' + user.userName
+        print 'disconnect starting...'
+        self.running = False
         for thread in threads:
             if type(thread) is ServerReceiveManager:
                 if thread.c == self.c:
@@ -542,7 +543,7 @@ class HeartbeatSendManager(threading.Thread):
         user = users.findUserFromConnection(self.c)
         if user == None:
             c.close()
-            print 'disconnect02'
+            print 'disconnect for none-user'
             return
         user.heartbeatFails = 6
         game = games.findGameFromWatcher(user)
@@ -550,13 +551,13 @@ class HeartbeatSendManager(threading.Thread):
             game.watchers.remove(user)
             users.users.remove(user)
             c.close()
-            print 'disconnect03'
+            print 'watcher disconnected'
             return
         game = games.findGameFromPlayer(user)
         if game == None:
             users.users.remove(user)
             c.close()
-            print 'disconnect04'
+            print "player disconnected"
             return
 
         games.games.remove(game)
@@ -567,19 +568,22 @@ class HeartbeatSendManager(threading.Thread):
         for watcher in game.watchers:
             waitingRoom.addToQueue(watcher)
         users.users.remove(user)
-        print 'disconnect05'
+        print 'player in game disconnected'
         c.close()
 
     def run(self):
         print "Starting HeartbeatManager"
-        while self.running:
-            time.sleep(5)
-            self.seqid += 1
-            self.heartbeatFails += 1
-            if self.heartbeatFails > 6:
-                self.disconnectUser()
-            else:
-                ServerCommandHandler.sendHeartbeatCommand(self.seqid, self.c)
+        try:
+            while self.running:
+                time.sleep(5)
+                self.seqid += 1
+                self.heartbeatFails += 1
+                if self.heartbeatFails > 6:
+                    self.disconnectUser()
+                else:
+                    ServerCommandHandler.sendHeartbeatCommand(self.seqid, self.c)
+        except:
+            print "Cannot send heartbeat."
         print "Exiting HeartbeatManager"
 
 class ServerReceiveManager(threading.Thread):
@@ -611,8 +615,20 @@ class ServerSendManager(threading.Thread):
         threadLock.acquire
         print "Sending  : " + self.message
         threadLock.release
-        self.c.sendall(self.message)
-        threads.remove(self)
+        try:
+            self.c.sendall(self.message)
+        except socket.error, e:
+            if isinstance(e.args, tuple):
+                print "errno is %d" % e[0]
+                if e[0] == errno.EPIPE:
+                    print "Detected remote disconnect"
+                else:
+                    print "Socket error 1"
+            else:
+                print "Socket error 2 " + e
+            #c.close()
+        except IOError, e:
+            print "Got IOError: ", e
 
 
 threads = []
