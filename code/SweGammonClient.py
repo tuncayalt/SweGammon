@@ -3,6 +3,7 @@ import threading
 import socket
 import json
 import time
+import errno
 
 threadLock = threading.Lock()
 
@@ -69,7 +70,7 @@ class CommandHandler(threading.Thread):
         self.message = message
 
     def requestParser(self,message):
-        reqList = re.split('  ', message)
+        reqList = re.split('   ', message)
         return reqList[0], reqList[1]
 
     def run(self):
@@ -104,7 +105,7 @@ class CommandHandler(threading.Thread):
 
     @staticmethod
     def sendMessage(command, jsonPart):
-        message = command + '  ' + jsonPart
+        message = command + '   ' + jsonPart
         sendManager = SendManager(message)
         threads.append(sendManager)
         sendManager.start()
@@ -160,7 +161,7 @@ class CommandHandler(threading.Thread):
         if message == None:
             session.gui.showConnectedScreen()
         else:
-            session.gui.showLoginScreen(seqid, message)
+            session.gui.showLoginScreen(message)
 
     def getGameStateFromResponse(self, decoded):
         session.gameState.dice[0] = decoded['gamestate']['dice'][0]
@@ -454,9 +455,19 @@ def sendLogin(*args):
     #host = socket.gethostname() # Get local machine name
     #print str(host)
     host = session.gui.txtIp.get()
-    s.connect((host, port))
-    time.sleep(2)
-    receiveManager.start()
+    try:
+        s.connect((host, port))
+        time.sleep(2)
+        receiveManager.start()
+    except socket.error, e:
+        if isinstance(e.args, tuple):
+            if e[0] == 56:
+                print "Next login try."
+            else:
+                print "Socket error 1" + e
+        else:
+            print "Socket error 2 " + e
+
     session.userName = session.gui.txtUser.get()
     CommandHandler.sendLoginCommand()
 def sendChoosePlay(*args):
