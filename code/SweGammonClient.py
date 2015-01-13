@@ -464,9 +464,9 @@ def sendLogin(*args):
             if e[0] == 56:
                 print "Next login try."
             else:
-                print "Socket error 1" + e
+                print "Socket error 1" + e.message
         else:
-            print "Socket error 2 " + e
+            print "Socket error 2 " + e.message
 
     session.userName = session.gui.txtUser.get()
     CommandHandler.sendLoginCommand()

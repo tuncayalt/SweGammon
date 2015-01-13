@@ -225,7 +225,8 @@ class WaitingRoom(threading.Thread):
             if self.watchers.qsize() > 0 and len(games.games) > 0:
                 randGameNumber = randint(0,len(games.games) - 1)
                 watcher = self.watchers.get()
-                games.games[randGameNumber].addWatcher(watcher)
+                game = games.games[randGameNumber]
+                game.addWatcher(watcher)
                 ServerCommandHandler.sendChooseWatchResponse(game, watcher)
 
 class JsonDict(dict):
@@ -625,10 +626,10 @@ class ServerSendManager(threading.Thread):
                 else:
                     print "Socket error 1"
             else:
-                print "Socket error 2 " + e
+                print "Socket error 2 " + e.message
             #c.close()
         except IOError, e:
-            print "Got IOError: ", e
+            print "Got IOError: ", e.message
 
 
 threads = []
