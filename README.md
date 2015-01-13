@@ -29,7 +29,7 @@ Gameplay:
 - Player can send backgammon moves by typing moves depending on standard backgammon notation and clicking Send Move button. This notation can be found in:
   http://www.bkgm.com/faq/BasicRules.html#backgammon_notation
 - Move examples: 
-- 
+
   4-3: 8/4 24/21
 
   4-4: 24/20 24/20 18/14 18/14
