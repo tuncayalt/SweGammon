@@ -4,6 +4,7 @@ import socket
 import json
 import time
 import errno
+import tkMessageBox
 
 threadLock = threading.Lock()
 
@@ -34,7 +35,7 @@ class SendManager(threading.Thread):
 
 class ReceiveManager(threading.Thread):
     def run(self):
-        while True:
+        while running[0]:
             incoming = s.recv(1024)
             threadLock.acquire
             print 'Receiving: ' + incoming
@@ -482,7 +483,14 @@ def sendSendMove(*args):
 def sendWrongMoveAlert(*args):
     CommandHandler.sendWrongMoveAlertCommand()
 
+def windowCloseHandler():
+    if tkMessageBox.askokcancel("Quit?", "Are you sure you want to quit?"):
+        running[0] = False
+        root.quit()
+
+running = [True]
 threads = []
+
 
 s = socket.socket() # Create a socket object
 host = '' # Get local machine name
@@ -496,9 +504,14 @@ threads.append(receiveManager)
 root = Tk()
 root.title("SweGammon")
 root.geometry("700x500+300+300")
+root.protocol("WM_DELETE_WINDOW", windowCloseHandler)
 session = Session(root)
 session.gui.initialize()
 root.mainloop()
+
+
+
+
 
 
 # Wait for all threads to complete
