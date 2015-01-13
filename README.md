@@ -29,9 +29,14 @@ Gameplay:
 - Player can send backgammon moves by typing moves depending on standard backgammon notation and clicking Send Move button. This notation can be found in:
   http://www.bkgm.com/faq/BasicRules.html#backgammon_notation
 - Move examples: 
+- 
   4-3: 8/4 24/21
+
   4-4: 24/20 24/20 18/14 18/14
+  
   3-2: bar/22 4/2
+  
   5-4: 5/off 3/off
+  
 - If a player detects a wrong move from the opponent, he/she can click Wrong Move Alert button and the move is undone.
 - If a player wins a game after a move, the opponent cannot see the Roll Dice button active. However, he/she can still click Wrong Move Alert button.
